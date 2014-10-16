@@ -30,8 +30,10 @@ let fold_left_imp f acc xs =
   !build
 
 
-type t = int list  (* TODO: change unit to whatever you want *)
-type u = unit  (* TODO: change unit to whatever you want *)
-let lst : t list = 
-let zardoz (x:t) : u = failwith "TODO"
-
+type t = float  (* TODO: change unit to whatever you want *)
+type u = float (* TODO: change unit to whatever you want  *)
+let lst : t list = [1.;2.;3.]
+let change = ref 1.
+let zardoz (x:t) : u =
+  change := !change /. x;
+  !change
