@@ -22,11 +22,26 @@ module type LIST_ITERATOR = sig
   val create: 'a list -> 'a t
 end
 
-(* TODO:
 module ListIterator : LIST_ITERATOR = struct
-  ...
+  type 'a t = 'a list ref
+  exception NoResult
+
+  let create (lst:'a list) : 'a t =
+    ref lst
+
+  let has_next (iter:'a list ref) : bool =
+    (!iter <> [])
+
+  let next (iter:'a list ref) : 'a =
+    match !iter with
+    | [] -> raise NoResult
+    | hd::tl -> 
+        iter:=tl;
+        hd
 end
-*)
+
+
+
 
 type 'a tree = Leaf | Node of ('a * 'a tree * 'a tree)
 
@@ -39,11 +54,29 @@ module type INORDER_TREE_ITERATOR = sig
   val create: 'a tree -> 'a t
 end
 
-(* TODO:
 module InorderTreeIterator : INORDER_TREE_ITERATOR = struct
-  ...
+  type 'a t = 'a list ref
+  exception NoResult
+
+  let create (t:'a tree) : 'a t =
+    let rec helper t =
+      match t with
+      | Leaf -> []
+      | Node (data,left,right) -> 
+          (helper left) @ [data] @ (helper right) in
+    ref (helper t)
+
+  let next (iter:'a list ref) : 'a =
+    match !iter with
+    | [] -> raise NoResult
+    | hd::tl -> 
+        iter:=tl;
+        hd
+
+  let has_next (iter:'a list ref) : bool =
+    (!iter <> [])
 end
-*)
+
 
 module type TAKE_ITERATOR = functor (I: ITERATOR) -> sig
   include ITERATOR
@@ -55,33 +88,56 @@ module type TAKE_ITERATOR = functor (I: ITERATOR) -> sig
   val create: int -> 'a I.t -> 'a t
 end
 
-(* TODO:
+
 module TakeIterator : TAKE_ITERATOR = functor (I : ITERATOR) -> struct
-  ...
+  type 'a t = 'a I.t
+  exception NoResult
+
+  let counter = ref 0
+
+  let create (n:int) (iter:'a I.t) : 'a t =
+    counter:=n; iter
+
+  let has_next (iter:'a I.t) : bool =
+    (!counter > 0) && (I.has_next iter)
+
+  let next (iter:'a I.t) : 'a =
+    if (!counter > 0) then 
+      begin
+      counter:= !counter - 1;
+      I.next iter
+      end
+    else
+      raise NoResult
 end
-*)
+
 
 module IteratorUtilsFn (I : ITERATOR) = struct
   open I
 
-  (* effects: causes i to yield n results, ignoring
-   *   those results.  Raises NoResult if i does.  *)
+  (* effects: causes iter to yield n results, ignoring
+   *   those results.  Raises NoResult if iter does raise result.*)
   let advance (n: int) (iter: 'a I.t) : unit =
-    failwith "Not implemented"
+    for i=n downto 1 do 
+      (I.next iter);
+    done
 
   (* returns: the final value of the accumulator after
    *   folding f over all the results returned by i,
    *   starting with acc as the initial accumulator.
    * effects: causes i to yield all its results. *)
-  let rec fold (f : ('a -> 'b -> 'a)) (acc : 'a) (iter: 'b I.t) : 'a =
-    failwith "Not implemented"
+  let rec fold (f : ('a -> 'b -> 'a)) (acc : 'a) (iter: 'b I.t):'a =
+    if (I.has_next iter) then 
+      fold f (f acc (I.next iter)) iter
+    else 
+      acc
 end
 
 module type RANGE_ITERATOR = functor (I : ITERATOR) -> sig
   include ITERATOR
 
   (* parameters: integers n and m and an iterator i
-   * returns: an iterator that behaves the way I would
+   * returns: an iterator that behaves the way i would
    *   on the nth through mth calls to next, and
    *   afterwards raises NoResult.
    *
@@ -90,8 +146,21 @@ module type RANGE_ITERATOR = functor (I : ITERATOR) -> sig
   val create : int -> int -> 'a I.t -> 'a t
 end
 
-(* TODO:
+
 module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
-  ...
+  type 'a t = 'a I.t
+  exception NoResult
+
+  module IteratorAdvance = (IteratorUtilsFn (I))
+  module IteratorEnforce = (TakeIterator (I))
+
+  let create (n:int) (m:int) (iter:'a I.t) : 'a I.t =
+    (IteratorAdvance.advance n iter);
+    IteratorEnforce.create (m-n) iter
+
+  let has_next (iter:'a I.t) : bool =
+    I.has_next iter
+
+  let next (iter:'a I.t) : 'a =
+    I.next iter
 end
-*)
