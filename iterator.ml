@@ -113,7 +113,7 @@ end
 module IteratorUtilsFn (I : ITERATOR) = struct
   open I
   (* effects: causes iter to yield n results, ignoring
-   *   those results.  Raises NoResult if iter does raise result.*)
+   *   those results.  Raises NoResult if iter raises NoResult itself.*)
   let advance (n: int) (iter: 'a I.t) : unit =
     for i=n downto 1 do 
       (next iter);
@@ -123,7 +123,7 @@ module IteratorUtilsFn (I : ITERATOR) = struct
    *   folding f over all the results returned by i,
    *   starting with acc as the initial accumulator.
    * effects: causes i to yield all its results. *)
-  let rec fold (f : ('a -> 'b -> 'a)) (acc : 'a) (iter: 'b I.t):'a =
+  let rec fold (f : ('a -> 'b -> 'a)) (acc : 'a) (iter: 'b I.t) : 'a =
     if (has_next iter) then 
       fold f (f acc (next iter)) iter
     else 
@@ -150,15 +150,15 @@ module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
   type 'a t = 'a IteratorEnforce.t
 
   let create (n:int) (m:int) (iter:'a I.t) : 'a t =
-    try 
-      (IteratorAdvance.advance n iter);
-      IteratorEnforce.create (m-n) iter
-    with _ -> raise NoResult
+    let counter = ref (n-1) in
+    while ((I.has_next iter) && (!counter > 0)) do
+      counter:=!counter - 1;
+      IteratorAdvance.advance 1 iter;
+    done;
+    IteratorEnforce.create (m-(n-1)) iter
 
   let has_next (iter:'a t) : bool =
-    try 
-      IteratorEnforce.has_next iter
-    with IteratorEnforce.NoResult -> raise NoResult
+    IteratorEnforce.has_next iter
 
   let next (iter:'a t) : 'a =
     try
