@@ -42,7 +42,6 @@ end
 
 
 
-
 type 'a tree = Leaf | Node of ('a * 'a tree * 'a tree)
 
 module type INORDER_TREE_ITERATOR = sig
@@ -88,7 +87,6 @@ module type TAKE_ITERATOR = functor (I: ITERATOR) -> sig
   val create: int -> 'a I.t -> 'a t
 end
 
-
 module TakeIterator : TAKE_ITERATOR = functor (I : ITERATOR) -> struct
   type 'a t = 'a I.t
   exception NoResult
@@ -102,7 +100,7 @@ module TakeIterator : TAKE_ITERATOR = functor (I : ITERATOR) -> struct
     (!counter > 0) && (I.has_next iter)
 
   let next (iter:'a I.t) : 'a =
-    if (!counter > 0) then 
+    if ((!counter > 0) && (I.has_next iter)) then 
       begin
       counter:= !counter - 1;
       I.next iter
@@ -111,15 +109,18 @@ module TakeIterator : TAKE_ITERATOR = functor (I : ITERATOR) -> struct
       raise NoResult
 end
 
-
+(* NOT SURE IF WE CAN LET THESE EXCEPTIONS BUBBLE UP OR IF WE
+    WE MUST CATCH THEM AND THEN CREATE OUR OWN OF THE TYPE OF THE
+    FUNCTOR. ALSO DON'T UNDERSTANDING WHY THE OPEN I STATEMENT
+    DOESN'T ACTUALLY GIVE YOU ACCESS TO CREATE,HAS_NEXT,NEXT WITHIN
+    THE RETURN MODULE FROM THE FUNCTOR... *)
 module IteratorUtilsFn (I : ITERATOR) = struct
   open I
-
   (* effects: causes iter to yield n results, ignoring
    *   those results.  Raises NoResult if iter does raise result.*)
   let advance (n: int) (iter: 'a I.t) : unit =
     for i=n downto 1 do 
-      (I.next iter);
+      (next iter);
     done
 
   (* returns: the final value of the accumulator after
@@ -127,8 +128,8 @@ module IteratorUtilsFn (I : ITERATOR) = struct
    *   starting with acc as the initial accumulator.
    * effects: causes i to yield all its results. *)
   let rec fold (f : ('a -> 'b -> 'a)) (acc : 'a) (iter: 'b I.t):'a =
-    if (I.has_next iter) then 
-      fold f (f acc (I.next iter)) iter
+    if (has_next iter) then 
+      fold f (f acc (next iter)) iter
     else 
       acc
 end
@@ -146,21 +147,22 @@ module type RANGE_ITERATOR = functor (I : ITERATOR) -> sig
   val create : int -> int -> 'a I.t -> 'a t
 end
 
+(* remember to throw the exceptions that belong to range not
+the bubbled up exceptions *)
 
-module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
-  type 'a t = 'a I.t
+(* module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
   exception NoResult
-
   module IteratorAdvance = (IteratorUtilsFn (I))
   module IteratorEnforce = (TakeIterator (I))
+  type 'a t = 'a IteratorEnforce.t
 
-  let create (n:int) (m:int) (iter:'a I.t) : 'a I.t =
+  let create (n:int) (m:int) (iter:'a I.t) : 'a t =
     (IteratorAdvance.advance n iter);
     IteratorEnforce.create (m-n) iter
 
-  let has_next (iter:'a I.t) : bool =
+  let has_next (iter:'a t) : bool =
     I.has_next iter
 
-  let next (iter:'a I.t) : 'a =
+  let next (iter:'a t) : 'a =
     I.next iter
-end
+end *)
