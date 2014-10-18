@@ -636,14 +636,119 @@ TEST_UNIT "range_iterator_test13" =
 
 (* tests using tree structure *)
 
+TEST_UNIT "iterator_utils_fn_test14" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree =     Node(2, 
+            Node(7, 
+      Node(2,Leaf,Leaf),Node(6,
+              Node(5,Leaf,Leaf),Node(11,Leaf,Leaf))),
 
+                              Node(5, Leaf, 
+                                    Node(9,
+                                  Node(4,Leaf,Leaf),Leaf))) in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create 2 6 iter2 in
+  assert_true (has_next iter);
+  assert_true ((next iter) = 7);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 5);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 6);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 11);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 2);
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
 
+TEST_UNIT "iterator_utils_fn_test15" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree =     Node(2, 
+            Node(7, 
+      Node(2,Leaf,Leaf),Node(6,
+              Node(5,Leaf,Leaf),Node(11,Leaf,Leaf))),
 
+                              Node(5, Leaf, 
+                                    Node(9,
+                                  Node(4,Leaf,Leaf),Leaf))) in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create 6 6 iter2 in
+  assert_true (has_next iter);
+  assert_true ((next iter) = 2);
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
 
+TEST_UNIT "iterator_utils_fn_test16" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree =     Node(2, 
+            Node(7, 
+      Node(2,Leaf,Leaf),Node(6,
+              Node(5,Leaf,Leaf),Node(11,Leaf,Leaf))),
 
+                              Node(5, Leaf, 
+                                    Node(9,
+                                  Node(4,Leaf,Leaf),Leaf))) in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create 20 30 iter2 in
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
 
+TEST_UNIT "iterator_utils_fn_test17" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree =     Node(2, 
+            Node(7, 
+      Node(2,Leaf,Leaf),Node(6,
+              Node(5,Leaf,Leaf),Node(11,Leaf,Leaf))),
 
+                              Node(5, Leaf, 
+                                    Node(9,
+                                  Node(4,Leaf,Leaf),Leaf))) in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create (-3) 20 iter2 in
+  assert_true (has_next iter);
+  assert_true ((next iter) = 2);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 7);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 5);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 6);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 11);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 2);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 5);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 4);
+  assert_true (has_next iter);
+  assert_true ((next iter) = 9);
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
 
+TEST_UNIT "iterator_utils_fn_test18" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree = Leaf in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create 2 3 iter2 in
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
+
+TEST_UNIT "iterator_utils_fn_test19" =
+  let module TestModule = RangeIterator (InorderTreeIterator) in
+  let open TestModule in
+  let tree = Node (5,Leaf,Leaf) in
+  let iter2 = InorderTreeIterator.create tree in
+  let iter = create 1 5 iter2 in
+  assert_true (has_next iter);
+  assert_true ((next iter) = 5);
+  assert_false (has_next iter);
+  assert_raises (Some NoResult) next iter
 
 
 
