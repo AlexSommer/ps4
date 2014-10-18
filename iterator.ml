@@ -109,11 +109,7 @@ module TakeIterator : TAKE_ITERATOR = functor (I : ITERATOR) -> struct
       raise NoResult
 end
 
-(* NOT SURE IF WE CAN LET THESE EXCEPTIONS BUBBLE UP OR IF WE
-    WE MUST CATCH THEM AND THEN CREATE OUR OWN OF THE TYPE OF THE
-    FUNCTOR. ALSO DON'T UNDERSTANDING WHY THE OPEN I STATEMENT
-    DOESN'T ACTUALLY GIVE YOU ACCESS TO CREATE,HAS_NEXT,NEXT WITHIN
-    THE RETURN MODULE FROM THE FUNCTOR... *)
+
 module IteratorUtilsFn (I : ITERATOR) = struct
   open I
   (* effects: causes iter to yield n results, ignoring
@@ -147,22 +143,25 @@ module type RANGE_ITERATOR = functor (I : ITERATOR) -> sig
   val create : int -> int -> 'a I.t -> 'a t
 end
 
-(* remember to throw the exceptions that belong to range not
-the bubbled up exceptions *)
-
-(* module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
+module RangeIterator : RANGE_ITERATOR = functor (I : ITERATOR) -> struct
   exception NoResult
   module IteratorAdvance = (IteratorUtilsFn (I))
   module IteratorEnforce = (TakeIterator (I))
   type 'a t = 'a IteratorEnforce.t
 
   let create (n:int) (m:int) (iter:'a I.t) : 'a t =
-    (IteratorAdvance.advance n iter);
-    IteratorEnforce.create (m-n) iter
+    try 
+      (IteratorAdvance.advance n iter);
+      IteratorEnforce.create (m-n) iter
+    with _ -> raise NoResult
 
   let has_next (iter:'a t) : bool =
-    I.has_next iter
+    try 
+      IteratorEnforce.has_next iter
+    with IteratorEnforce.NoResult -> raise NoResult
 
   let next (iter:'a t) : 'a =
-    I.next iter
-end *)
+    try
+      IteratorEnforce.next iter
+    with IteratorEnforce.NoResult -> raise NoResult
+end

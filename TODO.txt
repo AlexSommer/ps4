@@ -1,3 +1,0 @@
--check whether utils functor also has to throw its own exceptions
--why doesn't open I let you access the has_next, next, create method from the module binding originally?
--what to do with the type 'a t within the range functor? It is confused about the I.t iterator type versus the one from previous portions
