@@ -414,6 +414,19 @@ TEST_UNIT "iterator_utils_fn_test13" =
   assert_false (has_next iter);
   assert_raises (Some NoResult) next iter
 
+(* FOLD FUNCTIONS *)
+
+
+
+
+
+
+
+
+
+
+
+
 
 (* -------------------------------------------------------------- *)
 (* RANGE ITERATOR FN TESTING *)
