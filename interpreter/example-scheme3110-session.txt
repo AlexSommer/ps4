@@ -182,7 +182,7 @@ zardoz> ;; The quote construct might seem a little bit mysterious, so here's an
         ;; variable that the user passes in to the empty list:
         (define nihilize
           (lambda (symbol)
-            (eval (cons 'set! (cons symbol (cons ''() '()))))))
+            (eval (cons 'set! (cons symbol (cons ''() '()))) )))
         ;; Note that we need to double quote the empty list so it's not
         ;; evaluated during the set!.
 
