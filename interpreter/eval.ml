@@ -26,6 +26,7 @@ exception InvalidIdentifier
 exception InvalidExpression
 exception InvalidDatum
 exception VariableNotDefined
+exception InvalidArguments
 
 exception Placeholder
 
@@ -60,17 +61,38 @@ let rec read_expression (input : datum) : expression =
       ExprQuote e
   (* if expression parsing *)
   | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Cons (e3, Nil)))) 
-      when ((Identifier.string_of_identifier id) = "if") ->
+    when ((Identifier.string_of_identifier id) = "if") ->
       ExprIf ((read_expression e1),(read_expression e2),(read_expression e3))
+  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
+    when ((Identifier.string_of_identifier id) = "equal?") ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        [read_expression e1;read_expression e2])
+  | Cons ((Atom (Identifier id)), Cons (e1, Nil)) 
+    when ((Identifier.string_of_identifier id) = "eval") ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        [read_expression e1])
+  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
+    when ((Identifier.string_of_identifier id) = "cons") ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        [read_expression e1;read_expression e2])
+
 
   (* TODO -------------------------- *)
    (* two param procedure call *)
-  | Cons (Atom (Identifier id), Cons (e1, Cons(e2, Nil))) ->
-    if ((Identifier.string_of_identifier id) = "equal?") then
+(*   | Cons (Atom (Identifier id), Cons (e1, Cons(e2, Nil)))
+    when ((Identifier.string_of_identifier id) = "car") ->
+
+      
+
+
+
+
+
+
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
         [(read_expression e1);(read_expression e2)])
     else 
-      raise Placeholder
+      raise Placeholder *)
   (* if first identifier is not a keyword, must be procedure call *)
   | Cons (Atom (Identifier id), tl) ->
     if (Identifier.is_valid_variable id) then
@@ -126,7 +148,19 @@ let rec process_variable (var:Identifier.variable) (env:environment) : value =
   else 
     raise VariableNotDefined
 
+let equal_helper (lst:value list) (env:environment) : value = 
+  match lst with
+  | hd1::hd2::[] -> 
+      if (hd1 = hd2) then
+        ValDatum (Atom (Boolean true))
+      else 
+        ValDatum (Atom (Boolean false))
+  | _ -> raise InvalidArguments   
 
+let eval_helper (lst:value list) (env:environment) : value =
+  match lst with
+  | hd::[] -> hd
+  | _ -> raise InvalidArguments
 
 
 (* This function returns an initial environment with any built-in
@@ -134,15 +168,45 @@ let rec process_variable (var:Identifier.variable) (env:environment) : value =
 let rec initial_environment () : environment =
   let open Identifier in
   let first = variable_of_identifier (identifier_of_string "course") in
-  Environment.add_binding Environment.empty_environment
-    (first,ref (ValDatum(Atom (Integer 3110))))
-
+  let env1 = Environment.add_binding Environment.empty_environment
+    (first,ref (ValDatum(Atom (Integer 3110)))) in
+  let second = variable_of_identifier (identifier_of_string "equal?") in
+  let env2 = Environment.add_binding env1 
+    (second,ref (ValProcedure (ProcBuiltin equal_helper))) in
+  let third = variable_of_identifier (identifier_of_string "eval") in
+  let env3 = Environment.add_binding env2 
+    (third, ref (ValProcedure (ProcBuiltin eval_helper))) in env3
 
 and process_if e1 e2 e3 env =
   if ((eval e1 env) = (ValDatum (Atom (Boolean false)))) then
     eval e3 env
   else 
     eval e2 env
+
+and process_proc_call var lst env =
+  if ("equal?" = (Identifier.string_of_variable var)) then
+    match (lst,!(Environment.get_binding env var)) with
+    | (hd1::hd2::[],ValProcedure (ProcBuiltin f)) -> 
+      begin
+        let first = (eval hd1 env) in
+        let second = (eval hd2 env) in f [first;second] env
+      end
+    | _ -> raise InvalidArguments
+  else if ("eval" = (Identifier.string_of_variable var)) then
+    match (lst,!(Environment.get_binding env var)) with
+    | (hd::[],ValProcedure (ProcBuiltin f)) -> 
+        let first = eval hd env in f [first] env
+    | _ -> raise InvalidArguments
+(*   else if ("cons" = (Identifier.string_of_variable var)) then
+    match lst with
+    | hd1::hd2::[] ->
+        ValDatum (Cons (hd1, Cons (hd2,Nil)))
+    | _ -> raise InvalidArguments *)
+  else 
+    raise Placeholder
+
+
+
 
 (* Evaluates an expression down to a value in a given environment. *)
 (* You may want to add helper functions to make this function more
@@ -155,16 +219,16 @@ and eval (expression : expression) (env : environment) : value =
   | ExprSelfEvaluating (SEInteger x) -> ValDatum (Atom (Integer x))
   | ExprVariable x -> process_variable x env
   | ExprQuote x -> ValDatum x
-  | ExprLambda (_, _)
-  | ExprProcCall _        ->
-     failwith "Sing along with me as I row my boat!'"
+  | ExprProcCall (ExprVariable var,lst) -> process_proc_call var lst env
   | ExprIf (e1,e2,e3) -> process_if e1 e2 e3 env
+  | ExprLambda (_, _) -> failwith "blah"
   | ExprAssignment (_, _) ->
      failwith "Say something funny, Rower!"
   | ExprLet (_, _)
   | ExprLetStar (_, _)
   | ExprLetRec (_, _)     ->
      failwith "Ahahaha!  That is classic Rower."
+  | _ -> failwith "temporary"
 
 (* Evaluates a toplevel input down to a value and an output environment in a
    given environment. *)
