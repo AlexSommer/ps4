@@ -46,6 +46,14 @@ exception Placeholder
   | Nil -> "Nil"
   | Cons (car, cdr) -> "Cons (" ^ string_of_cons car cdr ^ ")" *)
 
+let rec print_datum input =
+  match input with
+  | Atom (Boolean b) -> "Atom (Boolean " ^ (if b then "#t" else "#f") ^ ")"
+  | Atom (Integer n) -> "Atom (Integer " ^ (string_of_int n) ^ ")"
+  | Atom (Identifier id) -> "Atom (Identifier " ^ (Identifier.string_of_identifier id) ^")"
+  | Nil -> "Nil"
+  | Cons (car, cdr) -> "Cons (" ^ (print_datum car) ^ ", " ^ (print_datum cdr) ^ ")"
+
 
 (* Parses a datum into an expression. *)
 let rec read_expression (input : datum) : expression =
@@ -56,6 +64,7 @@ let rec read_expression (input : datum) : expression =
   | Atom (Integer x) -> ExprSelfEvaluating (SEInteger x)
   | Atom (Boolean x) -> ExprSelfEvaluating (SEBoolean x)
   | Nil -> raise InvalidExpression
+  (* quote parsing *)
   | Cons (Atom (Identifier id), Cons (e , Nil)) when
     ((Identifier.string_of_identifier id) = "quote") ->
       ExprQuote e
@@ -63,31 +72,39 @@ let rec read_expression (input : datum) : expression =
   | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Cons (e3, Nil)))) 
     when ((Identifier.string_of_identifier id) = "if") ->
       ExprIf ((read_expression e1),(read_expression e2),(read_expression e3))
-  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
-    when ((Identifier.string_of_identifier id) = "equal?") ->
+  (* equal? and cons parsing *)
+  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) ->
+    if (((Identifier.string_of_identifier id) = "equal?") ||
+        ((Identifier.string_of_identifier id) = "cons")) then
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
         [read_expression e1;read_expression e2])
+    else
+      raise InvalidExpression
+
+
+
+  (* car parsing *)
+  | Cons (Atom (Identifier id), Cons ((Cons ((Atom (Identifier id2), Cons (e1, Cons(e2,Nil))  )),Nil))) when 
+        (((Identifier.string_of_identifier id) = "car") &&
+          ((Identifier.string_of_identifier id2) = "quote")) ->
+         (print_string ((print_datum e1) ^ "\n\n"));
+          failwith "fuck" 
+            (* ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
+              [ExprQuote e1]) *)
+  (* eval parsing *)
   | Cons ((Atom (Identifier id)), Cons (e1, Nil)) 
     when ((Identifier.string_of_identifier id) = "eval") ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
         [read_expression e1])
-  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
-    when ((Identifier.string_of_identifier id) = "cons") ->
+
+(*   | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
+    when  ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        [read_expression e1;read_expression e2])
-
-
+        [read_expression e1;read_expression e2]) *)
   (* TODO -------------------------- *)
    (* two param procedure call *)
 (*   | Cons (Atom (Identifier id), Cons (e1, Cons(e2, Nil)))
     when ((Identifier.string_of_identifier id) = "car") ->
-
-      
-
-
-
-
-
 
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
         [(read_expression e1);(read_expression e2)])
@@ -100,7 +117,7 @@ let rec read_expression (input : datum) : expression =
         [(read_expression tl)])
     else
       raise Placeholder
-  | _ -> raise InvalidExpression
+  | _ -> failwith "here"
 
 
 
@@ -126,7 +143,7 @@ Cons(Atom (Integer 1), Cons(Atom (Integer 0), Nil))
 
 (* Parses a datum into a toplevel input. *)
 let read_toplevel (input : datum) : toplevel =
-  (* print_string (print_datum input); *)
+  print_string (print_datum input);
   match input with
   | Cons (Atom (Identifier id), Cons (Atom (Identifier name), tl)) 
     when ((Identifier.string_of_identifier id) = "define") &&
@@ -162,6 +179,17 @@ let eval_helper (lst:value list) (env:environment) : value =
   | hd::[] -> hd
   | _ -> raise InvalidArguments
 
+let cons_helper (lst:value list) (env:environment) : value =
+  match lst with
+  | (ValDatum hd1)::(ValDatum hd2)::[] -> ValDatum (Cons (hd1,hd2))
+  | _ -> raise InvalidArguments
+
+let car_helper (lst:value list) (env:environment) : value =
+  match lst with
+  | hd::[] -> hd
+  | _ -> raise InvalidArguments
+
+
 
 (* This function returns an initial environment with any built-in
    bound variables. *)
@@ -175,7 +203,13 @@ let rec initial_environment () : environment =
     (second,ref (ValProcedure (ProcBuiltin equal_helper))) in
   let third = variable_of_identifier (identifier_of_string "eval") in
   let env3 = Environment.add_binding env2 
-    (third, ref (ValProcedure (ProcBuiltin eval_helper))) in env3
+    (third, ref (ValProcedure (ProcBuiltin eval_helper))) in
+  let fourth = variable_of_identifier (identifier_of_string "cons") in
+  let env4 = Environment.add_binding env3 
+    (fourth, ref (ValProcedure (ProcBuiltin cons_helper))) in
+  let fifth = variable_of_identifier (identifier_of_string "car") in
+  let env5 = Environment.add_binding env4
+    (fifth, ref (ValProcedure (ProcBuiltin car_helper))) in env5
 
 and process_if e1 e2 e3 env =
   if ((eval e1 env) = (ValDatum (Atom (Boolean false)))) then
@@ -184,7 +218,8 @@ and process_if e1 e2 e3 env =
     eval e2 env
 
 and process_proc_call var lst env =
-  if ("equal?" = (Identifier.string_of_variable var)) then
+  if (("equal?" = (Identifier.string_of_variable var)) || 
+      ("cons" = (Identifier.string_of_variable var))) then       
     match (lst,!(Environment.get_binding env var)) with
     | (hd1::hd2::[],ValProcedure (ProcBuiltin f)) -> 
       begin
@@ -192,16 +227,12 @@ and process_proc_call var lst env =
         let second = (eval hd2 env) in f [first;second] env
       end
     | _ -> raise InvalidArguments
-  else if ("eval" = (Identifier.string_of_variable var)) then
-    match (lst,!(Environment.get_binding env var)) with
-    | (hd::[],ValProcedure (ProcBuiltin f)) -> 
-        let first = eval hd env in f [first] env
-    | _ -> raise InvalidArguments
-(*   else if ("cons" = (Identifier.string_of_variable var)) then
-    match lst with
-    | hd1::hd2::[] ->
-        ValDatum (Cons (hd1, Cons (hd2,Nil)))
-    | _ -> raise InvalidArguments *)
+  else if (("eval" = (Identifier.string_of_variable var)) || 
+    ("car" = (Identifier.string_of_variable var))) then
+        match (lst,!(Environment.get_binding env var)) with
+        | (hd::[],ValProcedure (ProcBuiltin f)) -> 
+            let first = eval hd env in f [first] env
+        | _ -> raise InvalidArguments
   else 
     raise Placeholder
 
