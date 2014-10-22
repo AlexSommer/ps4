@@ -81,11 +81,11 @@ let rec read_expression (input : datum) : expression =
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
         [read_expression e1;read_expression e2])
     (* eval parsing *)
-  | Cons (Atom (Identifier id), e1) when
+(*   | Cons (Atom (Identifier id), e1) when
       (((Identifier.string_of_identifier id) = "+") || 
         ((Identifier.string_of_identifier id) = "*")) ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        (parse e1))
+        (parse e1)) *)
   | Cons ((Atom (Identifier id)), Cons (e1, Nil))
       when ((Identifier.string_of_identifier id) = "eval") ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
@@ -97,6 +97,12 @@ let rec read_expression (input : datum) : expression =
   | Cons (Atom (Identifier id), Cons (all, Nil)) ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
         [read_expression all])
+  | Cons (Atom (Identifier id), e1) ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        (parse e1))
+  | Cons (Cons (Atom (Identifier id), Cons (vars, Cons (body,Nil))), tail) 
+      when ((Identifier.string_of_identifier id) = "lambda") ->
+      ExprProcCall (ExprLambda ((parse_vars vars),(parse body)),(parse tail))
   | _ -> failwith "end of matches"
 
 
@@ -104,6 +110,7 @@ and parse (dat:datum) : expression list =
   match dat with
   | Cons (first, Nil) -> [read_expression first]
   | Cons (first,second) -> [read_expression first] @ (parse second)
+  | Atom x -> [read_expression (Atom x)]
   | _ -> raise InvalidArguments
 
 and parse_vars (dat:datum) : variable list =
@@ -172,7 +179,7 @@ Cons(Atom (Integer 1), Cons(Atom (Integer 0), Nil))
 
 (* Parses a datum into a toplevel input. *)
 let read_toplevel (input : datum) : toplevel =
-  print_string (print_datum input);
+(*   print_string (print_datum input); *)
   match input with
   | Cons (Atom (Identifier id), Cons (Atom (Identifier name), tl)) 
     when ((Identifier.string_of_identifier id) = "define") &&
@@ -188,11 +195,7 @@ let read_toplevel (input : datum) : toplevel =
 
 
 
-let rec process_variable (var:Identifier.variable) (env:environment) : value =
-  if (Environment.is_bound env var) then
-    !(Environment.get_binding env var)
-  else 
-    raise VariableNotDefined
+
 
 let equal_helper (lst:value list) (env:environment) : value = 
   match lst with
@@ -244,6 +247,21 @@ let rec multiply_helper (lst:value list) (env:environment) : value =
   match lst with
   | [] -> ValDatum (Atom (Integer 1))
   | hd::tl -> multiply_two_datums hd (multiply_helper tl env)
+
+let rec contains_dup (lst:'a list) : bool =
+  match lst with
+  | [] -> false
+  | hd::tl -> 
+      if (List.mem hd tl) then
+        true
+      else
+        contains_dup tl
+
+let rec process_variable (var:Identifier.variable) (env:environment) : value =
+  if (Environment.is_bound env var) then
+    !(Environment.get_binding env var)
+  else 
+    raise VariableNotDefined
 
 
 
@@ -306,9 +324,42 @@ and process_proc_call var lst env =
     match !(Environment.get_binding env var) with
     | ValProcedure (ProcBuiltin f) -> f changed env
     | _ -> raise InvalidArguments
+  else if (Environment.is_bound var) then
+    process_variable var env
   else
     raise InvalidArguments
 
+and process_proc_lambda (clos:value) (args:expression list) (env:environment) =
+    match clos with 
+    | ValProcedure (ProcLambda (vars, envOld, body)) -> 
+      begin
+        let changed = List.map (fun ele -> eval ele env) args in
+        let changed2 = List.map (fun ele -> ref ele) changed in
+        (* bind args to variables -- which are already values *)
+        let bindings = List.combine vars changed2 in
+        let envExtend = 
+          List.fold_left Environment.add_binding envOld bindings in
+        match body with
+        | hd::[] -> eval hd envExtend
+        | hd::tl -> eval (ExprProcCall (hd, tl)) envExtend
+        | _-> failwith "Invalid Function Call Structure" 
+      end
+    | _ -> failwith "Not a Closure"
+
+(* 
+*******************************************************
+MAKE SURE YOU CHECK THAT THIS IS NOT A MUTABLE ENVIRONMENT!!!!!!!!!!!
+-------------KD29341982374902471974190274187234871209487
+DSKFJA;DLKFJAL;DFJA;LSDJFAL;SDKJF;ALKSDJF;LAKSDJF
+ *)
+
+
+and process_lambda (varlst:variable list) (exprlst:expression list)
+    (env:environment) : value =
+  if (contains_dup varlst) then
+    failwith "Variable Arguments Must Be Distinct"
+  else 
+    ValProcedure (ProcLambda (varlst,env,exprlst))
 
 
 
@@ -324,15 +375,16 @@ and eval (expression : expression) (env : environment) : value =
   | ExprVariable x -> process_variable x env
   | ExprQuote x -> ValDatum x
   | ExprProcCall (ExprVariable var,lst) -> process_proc_call var lst env
+  | ExprProcCall (clos, lst) -> process_proc_lambda (eval clos env) lst env
   | ExprIf (e1,e2,e3) -> process_if e1 e2 e3 env
-  | ExprLambda (_, _) -> failwith "blah"
+  | ExprLambda (varlst, exprlst) -> process_lambda varlst exprlst env
   | ExprAssignment (_, _) ->
      failwith "Say something funny, Rower!"
   | ExprLet (_, _)
   | ExprLetStar (_, _)
   | ExprLetRec (_, _)     ->
      failwith "Ahahaha!  That is classic Rower."
-  | _ -> failwith "temporary"
+  (*| _ -> failwith "temporary" *)
 
 (* Evaluates a toplevel input down to a value and an output environment in a
    given environment. *)
