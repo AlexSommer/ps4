@@ -100,6 +100,9 @@ zardoz> (id 5) ; Function application (just like + was!)
 5
 zardoz> (define f (lambda (x y) (+ x y)))
 
+lambda (x . (y . ())) (+ . (x . (y. ())))
+
+
 ()
 zardoz> (f 1 2)
 
