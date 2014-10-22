@@ -80,12 +80,6 @@ let rec read_expression (input : datum) : expression =
         ((Identifier.string_of_identifier id) = "cons")) ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
         [read_expression e1;read_expression e2])
-    (* eval parsing *)
-(*   | Cons (Atom (Identifier id), e1) when
-      (((Identifier.string_of_identifier id) = "+") || 
-        ((Identifier.string_of_identifier id) = "*")) ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        (parse e1)) *)
   | Cons ((Atom (Identifier id)), Cons (e1, Nil))
       when ((Identifier.string_of_identifier id) = "eval") ->
       ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
@@ -124,77 +118,20 @@ and parse_vars (dat:datum) : variable list =
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-(*   | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
-    when  ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        [read_expression e1;read_expression e2]) *)
-  (* TODO -------------------------- *)
-   (* two param procedure call *)
-(*   | Cons (Atom (Identifier id), Cons (e1, Cons(e2, Nil)))
-    when ((Identifier.string_of_identifier id) = "car") ->
-
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
-        [(read_expression e1);(read_expression e2)])
-    else 
-      raise Placeholder *)
-  (* if first identifier is not a keyword, must be procedure call *)
-(*   | Cons (Atom (Identifier id), tl) ->
-    if (Identifier.is_valid_variable id) then
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        [(read_expression tl)])
-    else
-      raise Placeholder *)
-  
-(* (
-Cons (Atom (Identifier (Identifier.identifier_of_string "if")),
-Cons(Cons (Atom (Identifier (Identifier.identifier_of_string "equal?")), 
-  Cons (Atom (Integer 5), Cons (Atom (Integer 5), Nil))),
-Cons(Atom (Integer 1), Cons(Atom (Integer 0), Nil))
-)))
- *)
-
-(*   | Cons (first, Nil) -> read_expression first
-  | Cons (one, two) ->  *)
-(* | Atom (Identifier id) when Identifier.is_valid_variable id ->
-      if ((Identifier.string_of_identifier id) = "if") then
-        ExprIf
-      else if (id = "quote") then
-        ExprQuote
-      else
-        raise Placeholder *)
-
-
-
 (* Parses a datum into a toplevel input. *)
 let read_toplevel (input : datum) : toplevel =
 (*   print_string (print_datum input); *)
   match input with
-  | Cons (Atom (Identifier id), Cons (Atom (Identifier name), tl)) 
-    when ((Identifier.string_of_identifier id) = "define") &&
-         (Identifier.is_valid_variable name) ->
-    ToplevelDefinition (Identifier.variable_of_identifier name,
-      (read_expression tl))
+  | Cons (Atom (Identifier id), Cons (Atom (Identifier name), Cons (tl,Nil)))
+    when (((Identifier.string_of_identifier id) = "define") &&
+         (Identifier.is_valid_variable name)) ->
+      ToplevelDefinition (Identifier.variable_of_identifier name,
+        (read_expression tl))
   | _ -> ToplevelExpression (read_expression input)
 
 
 
-
-
-
-
-
+(* -------------------EVALUATION HELPER FUNCTIONS ------------------- *)
 
 
 let equal_helper (lst:value list) (env:environment) : value = 
@@ -324,8 +261,9 @@ and process_proc_call var lst env =
     match !(Environment.get_binding env var) with
     | ValProcedure (ProcBuiltin f) -> f changed env
     | _ -> raise InvalidArguments
-  else if (Environment.is_bound var) then
-    process_variable var env
+  else if (Environment.is_bound env var) then
+    let closure = process_variable var env in
+    process_proc_lambda closure lst env
   else
     raise InvalidArguments
 
@@ -361,6 +299,20 @@ and process_lambda (varlst:variable list) (exprlst:expression list)
   else 
     ValProcedure (ProcLambda (varlst,env,exprlst))
 
+and process_def (var:variable) (expr:expression) (env:environment) 
+    : (value*environment) =
+  if (Environment.is_bound env var) then
+    let result = eval expr env in
+    match (Environment.get_binding env var) with
+    | value -> (value:=result); (ValDatum (Nil), env)
+  else
+    let envFirst = Environment.add_binding env (var, (ref (ValDatum Nil))) in
+    let exprResult = eval expr envFirst in
+    match (Environment.get_binding envFirst var) with
+    | value -> (value:=exprResult); (ValDatum (Nil), envFirst)
+
+
+
 
 
 (* Evaluates an expression down to a value in a given environment. *)
@@ -392,8 +344,8 @@ let eval_toplevel (toplevel : toplevel) (env : environment) :
       value * environment =
   match toplevel with
   | ToplevelExpression expression -> (eval expression env, env)
-  | ToplevelDefinition (_, _)     ->
-     failwith "I couldn't have done it without the Rower!"
+  | ToplevelDefinition (var, expr) -> process_def var expr env
+     
 
 let rec string_of_value value =
   let rec string_of_datum datum =
