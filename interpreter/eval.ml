@@ -67,6 +67,7 @@ let rec read_expression (input : datum) : expression =
   | Atom (Boolean x) -> ExprSelfEvaluating (SEBoolean x)
   | Nil -> raise InvalidExpression
   (* quote parsing *)
+  (* cHANGE THIS TO ENCOPOROATE A TAIL THAT CAN BE READ BY READ *)
   | Cons (Atom (Identifier id), Cons (e , Nil)) when
     ((Identifier.string_of_identifier id) = "quote") ->
       ExprQuote e
@@ -246,6 +247,7 @@ let rec contains_dup (lst:'a list) : bool =
         contains_dup tl
 
 let rec process_variable (var:Identifier.variable) (env:environment) : value =
+  (print_string (Identifier.string_of_variable var));
   if (Environment.is_bound env var) then
     !(Environment.get_binding env var)
   else 
@@ -371,6 +373,7 @@ and process_def (var:variable) (expr:expression) (env:environment)
 
 and process_let (bindList:let_binding list) (expList:expression list)
     (env:environment) : value =
+  (print_string "here");
   let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
   let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
   (* bind args to variables -- which are already values *)
@@ -380,6 +383,7 @@ and process_let (bindList:let_binding list) (expList:expression list)
 
 and process_let_star (bindList:let_binding list) (expList:expression list)
     (env:environment) : value =
+  (print_string "letstar");
   match bindList with
   | [] -> eval_body expList env
   | (name,value)::tl ->
