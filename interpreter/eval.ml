@@ -74,38 +74,54 @@ let rec read_expression (input : datum) : expression =
   | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Cons (e3, Nil))))
     when ((Identifier.string_of_identifier id) = "if") ->
       ExprIf ((read_expression e1),(read_expression e2),(read_expression e3))
-  (* equal? and cons parsing *)
-  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
-    when (((Identifier.string_of_identifier id) = "equal?") ||
-        ((Identifier.string_of_identifier id) = "cons")) ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        [read_expression e1;read_expression e2])
-  | Cons ((Atom (Identifier id)), Cons (e1, Nil))
-      when ((Identifier.string_of_identifier id) = "eval") ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
-        [read_expression e1])
-  | Cons (Atom (Identifier id), Cons (vars, Cons (body,Nil))) when
+  | Cons (Atom (Identifier id), Cons (vars, body)) when
       ((Identifier.string_of_identifier id) = "lambda") ->
         ExprLambda ((parse_vars vars),(parse body))
-  (* car/cdr parsing *)
-  | Cons (Atom (Identifier id), Cons (all, Nil)) ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        [read_expression all])
-  | Cons (Atom (Identifier id), e1) ->
-      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
-        (parse e1))
-  | Cons (Cons (Atom (Identifier id), Cons (vars, Cons (body,Nil))), tail) 
-      when ((Identifier.string_of_identifier id) = "lambda") ->
-      ExprProcCall (ExprLambda ((parse_vars vars),(parse body)),(parse tail))
-  | _ -> failwith "end of matches"
+  | Cons (Atom (Identifier id), Cons (Atom (Identifier name), Cons (ex,Nil)))
+      when (((Identifier.string_of_identifier id) = "set!") && 
+        (Identifier.is_valid_variable name)) ->
+          ExprAssignment (Identifier.variable_of_identifier name, 
+            read_expression ex)
+  | Cons (Atom (Identifier id), Cons (bindLst,expLst))
+      when ((Identifier.string_of_identifier id) = "let") ->
+        transform bindLst expLst 1
+  | Cons (Atom (Identifier id), Cons (bindLst,expLst))
+      when ((Identifier.string_of_identifier id) = "let*") ->
+        transform bindLst expLst 2
+  | Cons (Atom (Identifier id), Cons (bindLst,expLst))
+      when ((Identifier.string_of_identifier id) = "letrec") ->
+        transform bindLst expLst 3
+  (* possible new catch all for all procedure calls *)
+  | Cons (first, tail) ->
+      ExprProcCall (read_expression first, parse tail)
 
+and transform (bindLst:datum) (expLst:datum) (which:int) : expression =
+  let acc = build_vars_args [] bindLst in
+  if (which = 1) then
+    ExprLet (acc, parse expLst)
+  else if (which = 2) then
+    ExprLetStar (acc, parse expLst)
+  else
+    ExprLetRec (acc, parse expLst)
+
+and build_vars_args (acc) (bindLst:datum) =
+  match bindLst with
+  | Nil -> acc
+  | Cons (Cons (Atom (Identifier name), Cons(exp, Nil)), tail) when
+      (Identifier.is_valid_variable name) ->
+       build_vars_args 
+       (acc@[((Identifier.variable_of_identifier name),(read_expression exp))]) tail
+  | _ -> failwith "Invalid Let Expression"
 
 and parse (dat:datum) : expression list =
   match dat with
+  | Nil -> []
+  | Cons (Atom (Identifier id), rest) when 
+      (not (Identifier.is_valid_variable id)) ->
+        [read_expression (Cons (Atom (Identifier id), rest))]
   | Cons (first, Nil) -> [read_expression first]
   | Cons (first,second) -> [read_expression first] @ (parse second)
   | Atom x -> [read_expression (Atom x)]
-  | _ -> raise InvalidArguments
 
 and parse_vars (dat:datum) : variable list =
   match dat with
@@ -113,7 +129,7 @@ and parse_vars (dat:datum) : variable list =
       [Identifier.variable_of_identifier first]
   | Cons (Atom (Identifier first),tail) -> 
       [Identifier.variable_of_identifier first] @ (parse_vars tail)
-  | _ -> raise InvalidArguments
+  | _ -> failwith "parsing variable error"
 
 
 
@@ -128,6 +144,41 @@ let read_toplevel (input : datum) : toplevel =
       ToplevelDefinition (Identifier.variable_of_identifier name,
         (read_expression tl))
   | _ -> ToplevelExpression (read_expression input)
+
+
+
+  (* equal? and cons parsing *)
+ (*  | Cons ((Atom (Identifier id)), Cons (e1, Cons (e2, Nil))) 
+    when (((Identifier.string_of_identifier id) = "equal?") ||
+        ((Identifier.string_of_identifier id) = "cons")) ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        [read_expression e1;read_expression e2])
+  | Cons ((Atom (Identifier id)), Cons (e1, Nil))
+      when ((Identifier.string_of_identifier id) = "eval") ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id),
+        [read_expression e1]) *)
+
+
+  (* car/cdr parsing *)
+(*   | Cons (Atom (Identifier id), Cons (all, Nil)) ->
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        [read_expression all]) *)
+
+(*   | Cons (Cons (Atom (Identifier id), Cons (vars, Cons (body,Nil))), tail) 
+      when ((Identifier.string_of_identifier id) = "lambda") ->
+      (print_string "3");
+      ExprProcCall (ExprLambda ((parse_vars vars),(parse body)),(parse tail)) *)
+    (* generic proc call match *)
+(*   | Cons (Atom (Identifier id), e1) ->
+      (print_string "2");
+      ExprProcCall (ExprVariable (Identifier.variable_of_identifier id), 
+        (parse e1)) *)
+
+
+
+
+
+
 
 
 
@@ -238,7 +289,8 @@ and process_if e1 e2 e3 env =
   else 
     eval e2 env
 
-and process_proc_call var lst env =
+(* and process_proc_call var lst env =
+  (print_string "in process proc call");
   if (("equal?" = (Identifier.string_of_variable var)) || 
       ("cons" = (Identifier.string_of_variable var))) then       
     match (lst,!(Environment.get_binding env var)) with
@@ -265,24 +317,32 @@ and process_proc_call var lst env =
     let closure = process_variable var env in
     process_proc_lambda closure lst env
   else
-    raise InvalidArguments
+    raise InvalidArguments *)
+
+and eval_body (body:expression list) (env:environment) : value =
+  match body with
+    | tl::[] -> eval tl env
+    | hd::tl -> 
+      let _ = (eval hd env) in
+        eval_body tl env
+    | _-> failwith "Invalid Function Call Structure" 
 
 and process_proc_lambda (clos:value) (args:expression list) (env:environment) =
-    match clos with 
-    | ValProcedure (ProcLambda (vars, envOld, body)) -> 
-      begin
-        let changed = List.map (fun ele -> eval ele env) args in
-        let changed2 = List.map (fun ele -> ref ele) changed in
-        (* bind args to variables -- which are already values *)
-        let bindings = List.combine vars changed2 in
-        let envExtend = 
-          List.fold_left Environment.add_binding envOld bindings in
-        match body with
-        | hd::[] -> eval hd envExtend
-        | hd::tl -> eval (ExprProcCall (hd, tl)) envExtend
-        | _-> failwith "Invalid Function Call Structure" 
-      end
-    | _ -> failwith "Not a Closure"
+  match clos with
+  | ValProcedure (ProcLambda (vars, envOld, body)) ->
+    begin
+      let changed = List.map (fun ele -> eval ele env) args in
+      let changed2 = List.map (fun ele -> ref ele) changed in
+      (* bind args to variables -- which are already values *)
+      let bindings = List.combine vars changed2 in
+      let envExtend = 
+        List.fold_left Environment.add_binding envOld bindings in
+      eval_body body envExtend
+    end
+  | ValProcedure (ProcBuiltin f) -> 
+      let changed = List.map (fun ele -> eval ele env) args in
+        f changed env
+  | _ -> failwith "Invalid Procedure Call"
 
 (* 
 *******************************************************
@@ -290,8 +350,6 @@ MAKE SURE YOU CHECK THAT THIS IS NOT A MUTABLE ENVIRONMENT!!!!!!!!!!!
 -------------KD29341982374902471974190274187234871209487
 DSKFJA;DLKFJAL;DFJA;LSDJFAL;SDKJF;ALKSDJF;LAKSDJF
  *)
-
-
 and process_lambda (varlst:variable list) (exprlst:expression list)
     (env:environment) : value =
   if (contains_dup varlst) then
@@ -311,9 +369,30 @@ and process_def (var:variable) (expr:expression) (env:environment)
     match (Environment.get_binding envFirst var) with
     | value -> (value:=exprResult); (ValDatum (Nil), envFirst)
 
+and process_let (bindList:let_binding list) (expList:expression list)
+    (env:environment) : value =
+  let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
+  let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
+  (* bind args to variables -- which are already values *)
+  let envExtend = 
+    List.fold_left Environment.add_binding env changed2 in
+  eval_body expList envExtend
 
+and process_let_star (bindList:let_binding list) (expList:expression list)
+    (env:environment) : value =
+  match bindList with
+  | [] -> eval_body expList env
+  | (name,value)::tl ->
+      let newEnv = Environment.add_binding env (name,(ref (eval value env))) in
+      process_let_star tl expList newEnv
 
-
+and process_let_rec (bindList:let_binding list) (expList:expression list)
+    (env:environment) : value =
+  let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
+  let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
+  let envExtend = 
+    List.fold_left Environment.add_binding env changed2 in
+  process_let bindList expList envExtend
 
 (* Evaluates an expression down to a value in a given environment. *)
 (* You may want to add helper functions to make this function more
@@ -326,17 +405,20 @@ and eval (expression : expression) (env : environment) : value =
   | ExprSelfEvaluating (SEInteger x) -> ValDatum (Atom (Integer x))
   | ExprVariable x -> process_variable x env
   | ExprQuote x -> ValDatum x
-  | ExprProcCall (ExprVariable var,lst) -> process_proc_call var lst env
+(*   | ExprProcCall (ExprVariable var,lst) -> process_proc_call var lst env *)
   | ExprProcCall (clos, lst) -> process_proc_lambda (eval clos env) lst env
   | ExprIf (e1,e2,e3) -> process_if e1 e2 e3 env
   | ExprLambda (varlst, exprlst) -> process_lambda varlst exprlst env
-  | ExprAssignment (_, _) ->
-     failwith "Say something funny, Rower!"
-  | ExprLet (_, _)
-  | ExprLetStar (_, _)
-  | ExprLetRec (_, _)     ->
-     failwith "Ahahaha!  That is classic Rower."
-  (*| _ -> failwith "temporary" *)
+  | ExprAssignment (name,exp) -> 
+      if (Environment.is_bound env name) then
+        let result = eval exp env in
+        match (Environment.get_binding env name) with
+        | value -> (value:=result); ValDatum (Nil)
+      else 
+        failwith "Variable Not Bound in Environment"
+  | ExprLet (bindList,expList) -> process_let bindList expList env
+  | ExprLetStar (bindList,expList) -> process_let_star bindList expList env
+  | ExprLetRec (bindList,expList) -> process_let_rec bindList expList env
 
 (* Evaluates a toplevel input down to a value and an output environment in a
    given environment. *)
