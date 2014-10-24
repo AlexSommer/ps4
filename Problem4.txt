@@ -1,0 +1,11 @@
+Hi! 
+  Though we struggled with some of the ambiguity in the problem set, my partner and
+I found problem 3 very rewarding, and problems 1 and 2 definitely gave us a better 
+understanding of some of the more straightforward course material.
+   In terms of dividing up work, we found for this problem set, because the work is primarily 
+all done on the same file and the complexity of problem 3,  it was better to do the driver/spotter 
+method of programming on a single computer to ensure we were no the same page,and  this worked 
+relatively well for us. However it was much slower than being able to work on two 
+computers at once. 
+  The TA's were very helpful, and office hours were very effective in helping us complete 
+ this project. 
