@@ -35,7 +35,7 @@ Failure("x is not bound in this environment.")
 zardoz> (define x 2110)
 
 ()
-zardoz> x ; Now it is
+zardoz> x ; Now it is'
 
 2110
 zardoz> (define x course)
@@ -157,7 +157,7 @@ zardoz> (letrec ((factorial (lambda (x)
 120
 zardoz> ;; We can also do it like this:
         (define factorial (lambda (x) 
-                            (if (eqv? x 0)
+                            (if (equal? x 0)
                                 1
                               (* x (factorial (+ x -1))))))
 
@@ -185,7 +185,7 @@ zardoz> ;; The quote construct might seem a little bit mysterious, so here's an
         ;; variable that the user passes in to the empty list:
         (define nihilize
           (lambda (symbol)
-            (eval (cons 'set! (cons symbol (cons ''() '()))) )   ))
+            (eval (cons 'set! (cons symbol (cons ''() '()) )  ) )   ))
         ;; Note that we need to double quote the empty list so it's not
         ;; evaluated during the set!.
 

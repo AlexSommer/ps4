@@ -18,17 +18,14 @@ how the type is actually declared in terms of smaller quantities *)
 (* 
 'a environment = ('a binding) list = (variable * value ref) list
 'a binding = variable * value ref
-
-
  *)
+
 (* EXCEPTIONS *)
 exception InvalidIdentifier
 exception InvalidExpression
 exception InvalidDatum
 exception VariableNotDefined
 exception InvalidArguments
-
-exception Placeholder
 
 (* Parses a datum into an expression. *)
 let rec read_expression (input : datum) : expression =
@@ -247,6 +244,18 @@ and process_proc_lambda (clos:value) (args:expression list) (env:environment) =
         f changed env
   | _ -> failwith "Invalid Procedure Call"
 
+and process_proc_eval (clos:value) (args:expression list) (env:environment) =
+  match clos with
+  | ValProcedure (ProcBuiltin f) -> 
+    begin 
+      match args with
+      | (ExprQuote x)::tl -> eval (read_expression x) env
+      | _ ->
+        let changed = List.map (fun ele -> eval ele env) args in
+          f changed env
+    end
+  | _ -> failwith "Invalid Procedure Call"
+
 and process_lambda (varlst:variable list) (exprlst:expression list)
     (env:environment) : value =
   if (contains_dup varlst) then
@@ -311,7 +320,9 @@ and eval (expression : expression) (env : environment) : value =
   | ExprSelfEvaluating (SEInteger x) -> ValDatum (Atom (Integer x))
   | ExprVariable x -> process_variable x env
   | ExprQuote x -> ValDatum x
-(*   | ExprProcCall (ExprVariable var,lst) -> process_proc_call var lst env *)
+  | ExprProcCall (ExprVariable id, lst) 
+      when ((Identifier.string_of_variable id) = "eval") -> 
+        process_proc_eval (eval (ExprVariable id) env) lst env
   | ExprProcCall (clos, lst) -> process_proc_lambda (eval clos env) lst env
   | ExprIf (e1,e2,e3) -> process_if e1 e2 e3 env
   | ExprLambda (varlst, exprlst) -> process_lambda varlst exprlst env
