@@ -16,6 +16,10 @@ TEST_UNIT "count_up_from_test3" =
 	let f = count_up_from 5 (-2) in
 	assert_true (f () = 5 && f () = 3 && f () = 1)
 
+TEST_UNIT "count_up_from_test4" = 
+	let f = count_up_from 5 (10) in
+	assert_true (f () = 5 && f () = 15 && f () = 25)
+
 
 (* -------------------------------------------------------------------------- *)
 (* Tests for tabulate *) 
