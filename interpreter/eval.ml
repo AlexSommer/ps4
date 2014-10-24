@@ -374,29 +374,45 @@ and process_def (var:variable) (expr:expression) (env:environment)
 and process_let (bindList:let_binding list) (expList:expression list)
     (env:environment) : value =
   (print_string "here");
-  let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
-  let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
-  (* bind args to variables -- which are already values *)
-  let envExtend = 
-    List.fold_left Environment.add_binding env changed2 in
-  eval_body expList envExtend
+  let (vars,args) = List.split bindList in
+  if (contains_dup vars) then
+    failwith "Invalid Let Structure"
+  else
+    let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
+    let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
+    (* bind args to variables -- which are already values *)
+    let envExtend = 
+      List.fold_left Environment.add_binding env changed2 in
+    eval_body expList envExtend
 
 and process_let_star (bindList:let_binding list) (expList:expression list)
     (env:environment) : value =
-  (print_string "letstar");
   match bindList with
   | [] -> eval_body expList env
   | (name,value)::tl ->
       let newEnv = Environment.add_binding env (name,(ref (eval value env))) in
       process_let_star tl expList newEnv
 
-and process_let_rec (bindList:let_binding list) (expList:expression list)
+(* and process_let_rec (bindList:let_binding list) (expList:expression list)
     (env:environment) : value =
   let changed = List.map (fun (var,value) -> (var,eval value env)) bindList in
   let changed2 = List.map (fun (var,value) -> (var,ref value)) changed in
   let envExtend = 
     List.fold_left Environment.add_binding env changed2 in
-  process_let bindList expList envExtend
+  process_let bindList expList envExtend *)
+
+and process_let_rec (bindList:let_binding list) (expList:expression list)
+    (env:environment) : value =
+  let changed = 
+    List.map (fun (var,value) -> (var,ref (ValDatum Nil))) bindList in
+  let envExtend = 
+    List.fold_left Environment.add_binding env changed in
+  let f (envAcc:environment) (var,empty) (_,expr) =
+    (empty:=(eval expr envExtend));
+    (Environment.add_binding envAcc (var,empty)) in
+  let envFinal = List.fold_left2 f env changed bindList in
+  process_let bindList expList envFinal
+
 
 (* Evaluates an expression down to a value in a given environment. *)
 (* You may want to add helper functions to make this function more
